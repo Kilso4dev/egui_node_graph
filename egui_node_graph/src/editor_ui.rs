@@ -60,11 +60,10 @@ where
     #[must_use]
     pub fn draw_graph_editor(
         &mut self,
-        ctx: &CtxRef,
+        ui: &mut Ui,
         all_kinds: impl NodeTemplateIter<Item = NodeTemplate>,
     ) -> GraphResponse<UserResponse> {
-        let mouse = &ctx.input().pointer;
-        let cursor_pos = mouse.hover_pos().unwrap_or(Pos2::ZERO);
+        let cursor_pos = ui.input().pointer.hover_pos().unwrap_or(Pos2::ZERO);
 
         // Gets filled with the port locations as nodes are drawn
         let mut port_locations = PortLocations::new();
@@ -83,7 +82,7 @@ where
         inconsistent self. It has either more or less values than the graph."
         );
 
-        CentralPanel::default().show(ctx, |ui| {
+        CentralPanel::default().show_inside(ui, |ui| {
             /* Draw nodes */
             for node_id in self.node_order.iter().copied() {
                 let responses = GraphNodeWidget {
@@ -114,10 +113,12 @@ where
         let mut should_close_node_finder = false;
         if let Some(ref mut node_finder) = self.node_finder {
             let mut node_finder_area = Area::new("node_finder");
+
             if let Some(pos) = node_finder.position {
                 node_finder_area = node_finder_area.current_pos(pos);
             }
-            node_finder_area.show(ctx, |ui| {
+
+            node_finder_area.show(ui.ctx(), |ui| {
                 if let Some(node_kind) = node_finder.show(ui, all_kinds) {
                     let new_node = self.graph.add_node(
                         node_kind.node_graph_label(),
@@ -144,13 +145,13 @@ where
         };
 
         if let Some((_, ref locator)) = self.connection_in_progress {
-            let painter = ctx.layer_painter(LayerId::background());
+            let painter = ui.ctx().layer_painter(LayerId::background());
             let start_pos = port_locations[locator];
             painter.line_segment([start_pos, cursor_pos], connection_stroke)
         }
 
         for (input, output) in self.graph.iter_connections() {
-            let painter = ctx.layer_painter(LayerId::background());
+            let painter = ui.ctx().layer_painter(LayerId::background());
             let src_pos = port_locations[&AnyParameterId::Output(output)];
             let dst_pos = port_locations[&AnyParameterId::Input(input)];
             painter.line_segment([src_pos, dst_pos], connection_stroke);
@@ -224,19 +225,19 @@ where
 
         /* Mouse input handling */
 
-        if mouse.any_released() && self.connection_in_progress.is_some() {
+        if ui.input().pointer.any_released() && self.connection_in_progress.is_some() {
             self.connection_in_progress = None;
         }
 
-        if mouse.button_down(PointerButton::Secondary) {
+        if ui.input().pointer.button_down(PointerButton::Secondary) {
             self.node_finder = Some(NodeFinder::new_at(cursor_pos));
         }
-        if ctx.input().key_pressed(Key::Escape) {
+        if ui.input().key_pressed(Key::Escape) {
             self.node_finder = None;
         }
 
-        if ctx.input().pointer.middle_down() {
-            self.pan_zoom.pan += ctx.input().pointer.delta();
+        if ui.input().pointer.middle_down() {
+            self.pan_zoom.pan += ui.input().pointer.delta();
         }
 
         if click_on_background {
@@ -467,25 +468,26 @@ where
         // does not support drawing rectangles with asymmetrical round corners.
 
         let (shape, outline) = {
-            let corner_radius = 4.0;
+            let rounding_r = 4.0;
+            let rounding = egui::Rounding::same(rounding_r);
 
             let titlebar_height = title_height + margin.y;
             let titlebar_rect =
                 Rect::from_min_size(outer_rect.min, vec2(outer_rect.width(), titlebar_height));
             let titlebar = Shape::Rect(RectShape {
                 rect: titlebar_rect,
-                corner_radius,
+                rounding: rounding.clone(),
                 fill: titlebar_color,
                 stroke: Stroke::none(),
             });
 
             let body_rect = Rect::from_min_size(
-                outer_rect.min + vec2(0.0, titlebar_height - corner_radius),
+                outer_rect.min + vec2(0.0, titlebar_height - rounding_r),
                 vec2(outer_rect.width(), outer_rect.height() - titlebar_height),
             );
             let body = Shape::Rect(RectShape {
                 rect: body_rect,
-                corner_radius: 0.0,
+                rounding: egui::Rounding::same(0.),
                 fill: background_color,
                 stroke: Stroke::none(),
             });
@@ -496,7 +498,7 @@ where
             );
             let bottom_body = Shape::Rect(RectShape {
                 rect: bottom_body_rect,
-                corner_radius,
+                rounding: rounding.clone(),
                 fill: background_color,
                 stroke: Stroke::none(),
             });
@@ -507,7 +509,7 @@ where
                         .union(body_rect)
                         .union(bottom_body_rect)
                         .expand(1.0),
-                    corner_radius: 4.0,
+                    rounding: rounding.clone(),
                     fill: Color32::WHITE.lighten(0.8),
                     stroke: Stroke::none(),
                 })
