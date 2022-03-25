@@ -3,13 +3,14 @@ use super::*;
 #[cfg(feature = "persistence")]
 use serde::{Deserialize, Serialize};
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 #[cfg_attr(feature = "persistence", derive(Serialize, Deserialize))]
 pub struct PanZoom {
     pub pan: egui::Vec2,
     pub zoom: f32,
 }
 
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "persistence", derive(Serialize, Deserialize))]
 pub struct GraphEditorState<NodeData, DataType, ValueType, NodeTemplate, UserState> {
     pub graph: Graph<NodeData, DataType, ValueType>,
